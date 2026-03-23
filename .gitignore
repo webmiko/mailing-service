@@ -1,50 +1,92 @@
+# Виртуальное окружение
+.venv
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.egg-info/
+dist/
+build/
 
-# Virtual environment
-venv/
-.venv/
-ENV/
+# Логи
+*.log
+logs/
 
-# Environment variables
-.env
+# Данные (если не нужно коммитить)
+# data/*.json
+# data/*.csv
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
-
-# OS
 .DS_Store
-Thumbs.db
 
-# Django
+# Переменные окружения
+.env
+.env.local
+.env.*.local
+
+# Базы данных
+*.db
+*.sqlite
 *.sqlite3
-db.sqlite3
-media/
-staticfiles/
+*.db3
 
-# Logs
-logs/
-*.log
-
-# Distribution
-dist/
-build/
-*.egg-info/
-*.egg
-
-# Coverage
-htmlcov/
+# Отчеты и тесты
+reports/
+temp_reports/
 .coverage
 .coverage.*
-coverage.xml
-*.cover
-
-# mypy
+.pytest_cache/
+# coverage.json и COVERAGE.md оставляем для отслеживания покрытия
+.tox/
 .mypy_cache/
+.dmypy.json
+dmypy.json
+
+*.md
+!README.md
+
+# Временные файлы
+*.tmp
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# База знаний и старые проекты (справочные, не коммитить)
+Универсальная-база-знаний/
+Django-project-store-develop/
+web_app/
+
+# Git (отдельный репозиторий)
+.git_local/
+
+# Шаблоны коммитов (не коммитить)
+.git_commit_template
+COMMIT_RULES.md
+
+# Пустые папки (можно добавить .gitkeep если нужно)
+# static/css/.gitkeep
+# static/js/.gitkeep
+# static/images/.gitkeep
+# templates/.gitkeep
