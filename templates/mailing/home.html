@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Главная — Mailing Service{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Панель управления рассылками</h1>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="stat-value text-dark">{{ total_mailings }}</div>
+                <div class="stat-label text-muted">Всего рассылок</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="stat-value text-dark">{{ active_mailings }}</div>
+                <div class="stat-label text-muted">Активных рассылок</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="stat-value text-dark">{{ total_recipients }}</div>
+                <div class="stat-label text-muted">Уникальных получателей</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'mailing:mailing_create' %}" class="btn btn-primary">Создать рассылку</a>
+    <a href="{% url 'mailing:recipient_create' %}" class="btn btn-success">Добавить получателя</a>
+    <a href="{% url 'mailing:message_create' %}" class="btn btn-secondary">Создать сообщение</a>
+</div>
+{% endblock %}

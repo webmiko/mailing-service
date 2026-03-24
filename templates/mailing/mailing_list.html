@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Рассылки — Mailing Service{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h1 class="mb-0">Рассылки</h1>
+    <a href="{% url 'mailing:mailing_create' %}" class="btn btn-primary">Создать рассылку</a>
+</div>
+
+{% if mailings %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Сообщение</th>
+                <th>Статус</th>
+                <th class="d-none d-md-table-cell">Начало</th>
+                <th class="d-none d-md-table-cell">Окончание</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in mailings %}
+            <tr>
+                <td>{{ m.pk }}</td>
+                <td><a href="{% url 'mailing:mailing_detail' m.pk %}">{{ m.message.subject }}</a></td>
+                <td>
+                    <span class="badge {% if m.status == 'Создана' %}bg-secondary{% elif m.status == 'Запущена' %}bg-success{% else %}bg-info text-dark{% endif %}">
+                        {{ m.status }}
+                    </span>
+                </td>
+                <td class="d-none d-md-table-cell">{{ m.start_datetime|date:"d.m.Y H:i" }}</td>
+                <td class="d-none d-md-table-cell">{{ m.end_datetime|date:"d.m.Y H:i" }}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <a href="{% url 'mailing:mailing_update' m.pk %}" class="btn btn-outline-secondary">Изменить</a>
+                        <a href="{% url 'mailing:mailing_delete' m.pk %}" class="btn btn-outline-danger">Удалить</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+    <p class="fs-5">Рассылок пока нет.</p>
+    <a href="{% url 'mailing:mailing_create' %}" class="btn btn-primary">Создать первую рассылку</a>
+</div>
+{% endif %}
+{% endblock %}
