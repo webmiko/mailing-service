@@ -23,6 +23,8 @@
 - django-apscheduler
 - python-dotenv
 - Poetry
+- Bootstrap 5.3 (CDN)
+- Ruff (линтер/форматтер), mypy, pytest
 
 ## Установка и запуск
 
@@ -43,8 +45,9 @@ poetry install
 
 ```bash
 cp .env.example .env
-# Отредактировать .env — указать настройки БД, SECRET_KEY и EMAIL
 ```
+
+Отредактировать `.env` — указать настройки БД, `SECRET_KEY` и email (см. раздел [Настройка email](#настройка-email-icloud-smtp)).
 
 ### 4. Создать базу данных PostgreSQL
 
@@ -94,8 +97,8 @@ mailing-service/
 │   ├── urls.py                 # URL-маршруты авторизации
 │   ├── forms.py                # Формы регистрации
 │   └── managers.py             # UserManager для создания пользователей
-├── templates/                  # HTML-шаблоны
-├── static/                     # CSS-стили
+├── templates/                  # HTML-шаблоны (Bootstrap 5, адаптивная вёрстка)
+├── static/                     # CSS-стили (кастомные переопределения)
 ├── logs/                       # Логи приложения
 ├── docs/                       # Документация и план проекта
 ├── manage.py
@@ -119,9 +122,31 @@ poetry run python manage.py send_mailing <mailing_id>
 poetry run ruff check .
 poetry run ruff format .
 
-# Тесты
+# Статический анализ типов
+poetry run mypy .
+
+# Тесты (61 тест-кейс)
 poetry run pytest
+# или через Django
+poetry run python manage.py test
 ```
+
+## Настройка email (iCloud SMTP)
+
+Приложение использует iCloud SMTP для отправки писем. Для настройки:
+
+1. Перейти на [appleid.apple.com](https://appleid.apple.com)
+2. Войти → **Вход и безопасность** → **Пароли приложений**
+3. Создать пароль приложения (метка: «Mailing Service»)
+4. Указать в `.env`:
+
+```
+EMAIL_HOST_USER=ваш-apple-id@icloud.com
+EMAIL_HOST_PASSWORD=xxxx-xxxx-xxxx-xxxx
+DEFAULT_FROM_EMAIL=ваш-apple-id@icloud.com
+```
+
+> Обычный пароль Apple ID не подойдёт — необходим **App-Specific Password**.
 
 ## Роли пользователей
 
