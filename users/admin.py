@@ -17,6 +17,7 @@ class UserAdmin(BaseUserAdmin):
 
     fieldsets = (
         (None, {"fields": ("email", "password")}),
+        ("Профиль", {"fields": ("first_name", "last_name", "avatar", "phone", "country")}),
         ("Статус", {"fields": ("is_verified", "is_active", "is_staff", "is_superuser")}),
         ("Группы и права", {"fields": ("groups", "user_permissions")}),
         ("Даты", {"fields": ("last_login", "date_joined")}),
