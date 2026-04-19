@@ -131,22 +131,24 @@ poetry run pytest
 poetry run python manage.py test
 ```
 
-## Настройка email (iCloud SMTP)
+## Настройка email (Yandex SMTP)
 
-Приложение использует iCloud SMTP для отправки писем. Для настройки:
+Приложение использует Yandex SMTP для отправки писем. Для настройки:
 
-1. Перейти на [appleid.apple.com](https://appleid.apple.com)
-2. Войти → **Вход и безопасность** → **Пароли приложений**
-3. Создать пароль приложения (метка: «Mailing Service»)
+1. Перейти на [id.yandex.ru/security/app-passwords](https://id.yandex.ru/security/app-passwords)
+2. Войти в Яндекс ID
+3. Создать пароль приложения → тип **Почта** (метка: «Mailing Service»)
 4. Указать в `.env`:
 
 ```
-EMAIL_HOST_USER=ваш-apple-id@icloud.com
-EMAIL_HOST_PASSWORD=xxxx-xxxx-xxxx-xxxx
-DEFAULT_FROM_EMAIL=ваш-apple-id@icloud.com
+EMAIL_HOST_USER=ваш-логин@yandex.ru
+EMAIL_HOST_PASSWORD=сгенерированный-пароль
+DEFAULT_FROM_EMAIL=ваш-логин@yandex.ru
 ```
 
-> Обычный пароль Apple ID не подойдёт — необходим **App-Specific Password**.
+> Обычный пароль от Яндекса не подойдёт — необходим **пароль приложения**.
+> Также убедитесь, что в настройках Яндекс Почты включён доступ по IMAP/SMTP:
+> [mail.yandex.ru](https://mail.yandex.ru) → Настройки → Все настройки → Почтовые программы → разрешить доступ.
 
 ## Роли пользователей
 
