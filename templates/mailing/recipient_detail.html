@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recipient.full_name }} — Mailing Service{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">{{ recipient.full_name }}</h1>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-4">Email</dt>
+            <dd class="col-sm-8">{{ recipient.email }}</dd>
+            <dt class="col-sm-4">Ф. И. О.</dt>
+            <dd class="col-sm-8">{{ recipient.full_name }}</dd>
+            <dt class="col-sm-4">Комментарий</dt>
+            <dd class="col-sm-8">{{ recipient.comment|default:"—" }}</dd>
+        </dl>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'mailing:recipient_update' recipient.pk %}" class="btn btn-secondary">Редактировать</a>
+    <a href="{% url 'mailing:recipient_delete' recipient.pk %}" class="btn btn-danger">Удалить</a>
+    <a href="{% url 'mailing:recipient_list' %}" class="btn btn-outline-secondary">Назад к списку</a>
+</div>
+{% endblock %}

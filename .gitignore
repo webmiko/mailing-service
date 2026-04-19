@@ -18,7 +18,8 @@ build/
 
 # Логи
 *.log
-logs/
+logs/*
+!logs/.gitkeep
 
 # Данные (если не нужно коммитить)
 # data/*.json

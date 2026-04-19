@@ -1,0 +1,53 @@
+[project]
+name = "mailing-service"
+version = "0.1.0"
+description = "Веб-приложение на Django для управления рассылками сообщений клиентам"
+authors = [
+    {name = "niko"}
+]
+readme = "README.md"
+requires-python = ">=3.14,<4.0"
+dependencies = [
+    "django (==6.0.3)",
+    "djangorestframework (==3.17.0)",
+    "psycopg2-binary (==2.9.11)",
+    "python-dotenv (==1.2.2)",
+    "django-apscheduler (>=0.7.0,<0.8.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.15.7,<0.16.0)",
+    "mypy (>=1.19.1,<2.0.0)",
+    "pytest (>=9.0.2,<10.0.0)",
+    "pytest-django (>=4.12.0,<5.0.0)"
+]
+
+[tool.ruff]
+line-length = 119
+target-version = "py314"
+exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.14"
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["tests.py", "test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

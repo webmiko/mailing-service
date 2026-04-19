@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль — Mailing Service{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Профиль</h1>
+
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-5">Email</dt>
+            <dd class="col-sm-7">{{ user.email }}</dd>
+            <dt class="col-sm-5">Email подтверждён</dt>
+            <dd class="col-sm-7">
+                {% if user.is_verified %}
+                    <span class="badge bg-success">Да</span>
+                {% else %}
+                    <span class="badge bg-warning text-dark">Нет</span>
+                {% endif %}
+            </dd>
+            <dt class="col-sm-5">Дата регистрации</dt>
+            <dd class="col-sm-7">{{ user.date_joined|date:"d.m.Y H:i" }}</dd>
+        </dl>
+    </div>
+</div>
+{% endblock %}
