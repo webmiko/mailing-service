@@ -1,7 +1,7 @@
 """URL-маршруты приложения users."""
 
 from django.contrib.auth import views as auth_views
-from django.urls import path
+from django.urls import path, reverse_lazy
 
 from users import views
 from users.forms import UserPasswordResetForm, UserSetPasswordForm
@@ -22,6 +22,9 @@ urlpatterns = [
         auth_views.PasswordResetView.as_view(
             template_name="users/password_reset.html",
             form_class=UserPasswordResetForm,
+            success_url=reverse_lazy("users:password_reset_done"),
+            email_template_name="registration/password_reset_email.html",
+            subject_template_name="registration/password_reset_subject.txt",
         ),
         name="password_reset",
     ),
@@ -35,6 +38,7 @@ urlpatterns = [
         auth_views.PasswordResetConfirmView.as_view(
             template_name="users/password_reset_confirm.html",
             form_class=UserSetPasswordForm,
+            success_url=reverse_lazy("users:password_reset_complete"),
         ),
         name="password_reset_confirm",
     ),
