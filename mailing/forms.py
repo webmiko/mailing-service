@@ -5,10 +5,13 @@
 """
 
 from django import forms
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from mailing.models import Mailing, Message, Recipient
 
 DATETIME_INPUT_FORMAT = "%Y-%m-%dT%H:%M"
+DATETIME_TOLERANCE_SECONDS = 60
 COMMENT_TEXTAREA_ROWS = 3
 BODY_TEXTAREA_ROWS = 8
 
@@ -54,13 +57,13 @@ class MailingForm(forms.ModelForm):
 
     class Meta:
         model = Mailing
-        fields = ("start_datetime", "end_datetime", "message", "recipients")
+        fields = ("start_time", "end_time", "message", "recipients")
         widgets = {
-            "start_datetime": forms.DateTimeInput(
+            "start_time": forms.DateTimeInput(
                 attrs={"class": BS_INPUT, "type": "datetime-local"},
                 format=DATETIME_INPUT_FORMAT,
             ),
-            "end_datetime": forms.DateTimeInput(
+            "end_time": forms.DateTimeInput(
                 attrs={"class": BS_INPUT, "type": "datetime-local"},
                 format=DATETIME_INPUT_FORMAT,
             ),
@@ -69,6 +72,28 @@ class MailingForm(forms.ModelForm):
         }
 
     def __init__(self, *args: object, **kwargs: object) -> None:
+        self.user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
-        self.fields["start_datetime"].input_formats = [DATETIME_INPUT_FORMAT]
-        self.fields["end_datetime"].input_formats = [DATETIME_INPUT_FORMAT]
+        self.fields["start_time"].input_formats = [DATETIME_INPUT_FORMAT]
+        self.fields["end_time"].input_formats = [DATETIME_INPUT_FORMAT]
+        if self.user:
+            self.fields["message"].queryset = Message.objects.filter(owner=self.user)
+            self.fields["recipients"].queryset = Recipient.objects.filter(owner=self.user)
+
+    def _is_start_time_changed(self, new_start) -> bool:
+        if self.instance.pk is None:
+            return True
+        original = self.instance.start_time
+        if original is None:
+            return True
+        return abs((new_start - original).total_seconds()) > DATETIME_TOLERANCE_SECONDS
+
+    def clean(self) -> dict:
+        cleaned = super().clean()
+        start = cleaned.get("start_time")
+        end = cleaned.get("end_time")
+        if start and start < timezone.now() and self._is_start_time_changed(start):
+            raise ValidationError({"start_time": "Дата начала не может быть в прошлом."})
+        if start and end and start >= end:
+            raise ValidationError({"end_time": "Дата окончания должна быть позже даты начала."})
+        return cleaned
