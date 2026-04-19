@@ -12,7 +12,8 @@ dependencies = [
     "djangorestframework (==3.17.0)",
     "psycopg2-binary (==2.9.11)",
     "python-dotenv (==1.2.2)",
-    "django-apscheduler (>=0.7.0,<0.8.0)"
+    "django-apscheduler (>=0.7.0,<0.8.0)",
+    "pillow (>=12.2.0,<13.0.0)"
 ]
 
 
@@ -25,7 +26,8 @@ dev = [
     "ruff (>=0.15.7,<0.16.0)",
     "mypy (>=1.19.1,<2.0.0)",
     "pytest (>=9.0.2,<10.0.0)",
-    "pytest-django (>=4.12.0,<5.0.0)"
+    "pytest-django (>=4.12.0,<5.0.0)",
+    "flake8 (>=7.3.0,<8.0.0)"
 ]
 
 [tool.ruff]
