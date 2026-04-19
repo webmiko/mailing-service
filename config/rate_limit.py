@@ -1,7 +1,7 @@
-"""Rate-limiting на основе Django cache.
+"""Rate-limiting на основе низкоуровневого кэша Django (cache.get / cache.set).
 
-Декоратор для ограничения количества запросов к view
-без внешних зависимостей.
+Использует тот же backend, что и CACHES['default'] в settings.
+Декоратор для ограничения количества запросов к view без внешних зависимостей.
 """
 
 import functools
