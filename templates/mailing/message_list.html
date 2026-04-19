@@ -24,10 +24,12 @@
                 <td><a href="{% url 'mailing:message_detail' msg.pk %}">{{ msg.subject }}</a></td>
                 <td class="d-none d-md-table-cell">{{ msg.body|truncatewords:15 }}</td>
                 <td>
+                    {% if request.user == msg.owner or request.user.is_staff %}
                     <div class="btn-group btn-group-sm">
                         <a href="{% url 'mailing:message_update' msg.pk %}" class="btn btn-outline-secondary">Изменить</a>
                         <a href="{% url 'mailing:message_delete' msg.pk %}" class="btn btn-outline-danger">Удалить</a>
                     </div>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

@@ -20,10 +20,16 @@
             <div class="collapse navbar-collapse" id="mainNav">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link" href="{% url 'mailing:home' %}">Главная</a></li>
+                    {% if user.is_authenticated %}
                     <li class="nav-item"><a class="nav-link" href="{% url 'mailing:recipient_list' %}">Получатели</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'mailing:message_list' %}">Сообщения</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'mailing:mailing_list' %}">Рассылки</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'mailing:attempt_list' %}">Попытки</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'mailing:statistics' %}">Статистика</a></li>
+                    {% if user.is_staff %}
+                    <li class="nav-item"><a class="nav-link" href="{% url 'users:user_list' %}">Пользователи</a></li>
+                    {% endif %}
+                    {% endif %}
                 </ul>
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %}

@@ -19,9 +19,9 @@
                 </span>
             </dd>
             <dt class="col-sm-4">Начало отправки</dt>
-            <dd class="col-sm-8">{{ mailing_obj.start_datetime|date:"d.m.Y H:i" }}</dd>
+            <dd class="col-sm-8">{{ mailing_obj.start_time|date:"d.m.Y H:i" }}</dd>
             <dt class="col-sm-4">Окончание отправки</dt>
-            <dd class="col-sm-8">{{ mailing_obj.end_datetime|date:"d.m.Y H:i" }}</dd>
+            <dd class="col-sm-8">{{ mailing_obj.end_time|date:"d.m.Y H:i" }}</dd>
             <dt class="col-sm-4">Получатели</dt>
             <dd class="col-sm-8">
                 {% for r in mailing_obj.recipients.all %}
@@ -35,12 +35,20 @@
 </div>
 
 <div class="d-flex flex-wrap gap-2 mb-4">
+    {% if request.user == mailing_obj.owner or request.user.is_staff %}
     <form method="post" action="{% url 'mailing:mailing_send' mailing_obj.pk %}">
         {% csrf_token %}
         <button type="submit" class="btn btn-success">Отправить рассылку</button>
     </form>
     <a href="{% url 'mailing:mailing_update' mailing_obj.pk %}" class="btn btn-secondary">Редактировать</a>
     <a href="{% url 'mailing:mailing_delete' mailing_obj.pk %}" class="btn btn-danger">Удалить</a>
+    {% endif %}
+    {% if request.user.is_staff and mailing_obj.status != 'Завершена' %}
+    <form method="post" action="{% url 'mailing:mailing_disable' mailing_obj.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning">Отключить рассылку</button>
+    </form>
+    {% endif %}
     <a href="{% url 'mailing:mailing_list' %}" class="btn btn-outline-secondary">Назад к списку</a>
 </div>
 
@@ -59,7 +67,7 @@
         <tbody>
             {% for attempt in attempts %}
             <tr>
-                <td>{{ attempt.attempted_at|date:"d.m.Y H:i:s" }}</td>
+                <td>{{ attempt.attempt_time|date:"d.m.Y H:i:s" }}</td>
                 <td>
                     <span class="badge {% if attempt.status == 'Успешно' %}bg-success{% else %}bg-danger{% endif %}">
                         {{ attempt.status }}
