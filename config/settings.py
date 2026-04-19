@@ -115,6 +115,9 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 
+# Кэш по умолчанию (LocMem): один backend для разных сценариев:
+# — полное кэширование HTTP-ответа: cache_page() на главной (mailing.views.HomeView);
+# — низкоуровневый API: django.core.cache (счётчики в config.rate_limit и др.).
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",

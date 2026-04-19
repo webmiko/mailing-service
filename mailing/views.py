@@ -15,6 +15,7 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_cookie
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 
 from config.rate_limit import rate_limit
@@ -55,9 +56,14 @@ class MailingStatusMixin:
         return obj
 
 
+@method_decorator(vary_on_cookie, name="dispatch")
 @method_decorator(cache_page(HOME_CACHE_TIMEOUT), name="dispatch")
 class HomeView(TemplateView):
-    """Главная страница со статистикой рассылок."""
+    """Главная страница со статистикой рассылок.
+
+    Кэш страницы (полное кэширование ответа) с учётом Cookie, т.к. в шаблоне
+    есть блок навигации, зависящий от сессии пользователя.
+    """
 
     template_name = "mailing/home.html"
 
