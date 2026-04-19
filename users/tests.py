@@ -5,6 +5,7 @@
 """
 
 from django.contrib.auth.tokens import default_token_generator
+from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 from django.utils.encoding import force_bytes
@@ -201,6 +202,37 @@ class TestLoginLogout(TestCase):
         self.client.force_login(self.user)
         response = self.client.post(reverse("users:logout"))
         assert response.status_code == 302
+
+
+class TestPasswordReset(TestCase):
+    """Тесты сброса пароля по email."""
+
+    def setUp(self) -> None:
+        self.user = User.objects.create_user(email="reset@test.com", password="OldPass123!")
+
+    def test_password_reset_form_accessible(self) -> None:
+        response = self.client.get(reverse("users:password_reset"))
+        assert response.status_code == 200
+
+    def test_password_reset_sends_email_with_valid_link(self) -> None:
+        response = self.client.post(
+            reverse("users:password_reset"),
+            data={"email": "reset@test.com"},
+        )
+        assert response.status_code == 302
+        assert response.url == reverse("users:password_reset_done")
+        assert len(mail.outbox) == 1
+        body = mail.outbox[0].body
+        assert "/users/password-reset/" in body
+        assert "reset@test.com" in mail.outbox[0].to
+
+    def test_password_reset_unknown_email_still_redirects(self) -> None:
+        response = self.client.post(
+            reverse("users:password_reset"),
+            data={"email": "nobody@example.com"},
+        )
+        assert response.status_code == 302
+        assert len(mail.outbox) == 0
 
 
 # ========== Профиль ==========
