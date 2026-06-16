@@ -1,8 +1,9 @@
 """Формы приложения users.
 
-Содержит формы регистрации и авторизации пользователей.
+Содержит формы регистрации, авторизации и редактирования профиля.
 """
 
+from django import forms
 from django.contrib.auth.forms import AuthenticationForm, PasswordResetForm, SetPasswordForm, UserCreationForm
 
 from users.models import User
@@ -21,6 +22,22 @@ class UserRegisterForm(UserCreationForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", BS_INPUT)
+
+
+class UserProfileForm(forms.ModelForm):
+    """Форма редактирования профиля пользователя."""
+
+    class Meta:
+        model = User
+        fields = ("email", "first_name", "last_name", "phone", "country", "avatar")
+        widgets = {
+            "email": forms.EmailInput(attrs={"class": BS_INPUT}),
+            "first_name": forms.TextInput(attrs={"class": BS_INPUT}),
+            "last_name": forms.TextInput(attrs={"class": BS_INPUT}),
+            "phone": forms.TextInput(attrs={"class": BS_INPUT, "placeholder": "+7 (999) 123-45-67"}),
+            "country": forms.TextInput(attrs={"class": BS_INPUT, "placeholder": "Россия"}),
+            "avatar": forms.ClearableFileInput(attrs={"class": BS_INPUT}),
+        }
 
 
 class UserLoginForm(AuthenticationForm):

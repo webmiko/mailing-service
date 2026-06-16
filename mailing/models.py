@@ -6,6 +6,7 @@
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 MAILING_STATUS_CREATED = "Создана"
 MAILING_STATUS_STARTED = "Запущена"
@@ -52,6 +53,9 @@ class Recipient(models.Model):
         verbose_name = "Получатель"
         verbose_name_plural = "Получатели"
         ordering = ["full_name"]
+        permissions = [
+            ("can_view_all_recipients", "Может просматривать всех получателей"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.full_name} ({self.email})"
@@ -65,11 +69,22 @@ class Message(models.Model):
 
     subject = models.CharField(max_length=SUBJECT_MAX_LENGTH, verbose_name="Тема письма")
     body = models.TextField(verbose_name="Тело письма")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        verbose_name="Владелец",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         verbose_name = "Сообщение"
         verbose_name_plural = "Сообщения"
         ordering = ["-pk"]
+        permissions = [
+            ("can_view_all_messages", "Может просматривать все сообщения"),
+        ]
 
     def __str__(self) -> str:
         return self.subject
@@ -82,8 +97,8 @@ class Mailing(models.Model):
     и текущий статус рассылки.
     """
 
-    start_datetime = models.DateTimeField(verbose_name="Дата и время первой отправки")
-    end_datetime = models.DateTimeField(verbose_name="Дата и время окончания отправки")
+    start_time = models.DateTimeField(verbose_name="Дата и время начала отправки")
+    end_time = models.DateTimeField(verbose_name="Дата и время окончания отправки")
     status = models.CharField(
         max_length=STATUS_MAX_LENGTH,
         choices=MAILING_STATUS_CHOICES,
@@ -113,10 +128,27 @@ class Mailing(models.Model):
     class Meta:
         verbose_name = "Рассылка"
         verbose_name_plural = "Рассылки"
-        ordering = ["-start_datetime"]
+        ordering = ["-start_time"]
+        permissions = [
+            ("can_view_all_mailings", "Может просматривать все рассылки"),
+            ("can_disable_mailing", "Может отключать рассылки"),
+        ]
 
     def __str__(self) -> str:
         return f"Рассылка #{self.pk} — {self.message.subject} ({self.status})"
+
+    def update_status(self) -> None:
+        """Динамически пересчитывает статус на основе текущего времени."""
+        now = timezone.now()
+        if now < self.start_time:
+            new_status = MAILING_STATUS_CREATED
+        elif self.start_time <= now <= self.end_time:
+            new_status = MAILING_STATUS_STARTED
+        else:
+            new_status = MAILING_STATUS_COMPLETED
+        if self.status != new_status:
+            self.status = new_status
+            self.save(update_fields=["status"])
 
 
 class MailingAttempt(models.Model):
@@ -126,7 +158,7 @@ class MailingAttempt(models.Model):
     включая статус и ответ почтового сервера.
     """
 
-    attempted_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата и время попытки")
+    attempt_time = models.DateTimeField(auto_now_add=True, verbose_name="Дата и время попытки")
     status = models.CharField(
         max_length=STATUS_MAX_LENGTH,
         choices=ATTEMPT_STATUS_CHOICES,
@@ -143,7 +175,7 @@ class MailingAttempt(models.Model):
     class Meta:
         verbose_name = "Попытка рассылки"
         verbose_name_plural = "Попытки рассылок"
-        ordering = ["-attempted_at"]
+        ordering = ["-attempt_time"]
 
     def __str__(self) -> str:
-        return f"Попытка {self.attempted_at:%Y-%m-%d %H:%M} — {self.status}"
+        return f"Попытка {self.attempt_time:%Y-%m-%d %H:%M} — {self.status}"

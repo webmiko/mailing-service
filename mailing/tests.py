@@ -31,13 +31,21 @@ class _TestDataMixin:
     """Миксин для создания тестовых данных."""
 
     def _create_user(self, email: str = "user@test.com", password: str = "TestPass123!") -> User:
-        return User.objects.create_user(email=email, password=password)
+        user = User.objects.create_user(email=email, password=password)
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+        return user
 
     def _create_staff(self, email: str = "staff@test.com", password: str = "TestPass123!") -> User:
-        return User.objects.create_user(email=email, password=password, is_staff=True)
+        user = User.objects.create_user(email=email, password=password, is_staff=True)
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+        return user
 
-    def _create_message(self, subject: str = "Тема", body: str = "Текст") -> Message:
-        return Message.objects.create(subject=subject, body=body)
+    def _create_message(
+        self, subject: str = "Тема", body: str = "Текст", owner: User | None = None
+    ) -> Message:
+        return Message.objects.create(subject=subject, body=body, owner=owner)
 
     def _create_recipient(self, email: str = "client@test.com", owner: User | None = None) -> Recipient:
         return Recipient.objects.create(email=email, full_name="Иванов Иван", owner=owner)
@@ -53,8 +61,8 @@ class _TestDataMixin:
         now = timezone.now()
         msg = message or self._create_message()
         return Mailing.objects.create(
-            start_datetime=now + delta_start,
-            end_datetime=now + delta_end,
+            start_time=now + delta_start,
+            end_time=now + delta_end,
             status=status,
             message=msg,
             owner=owner,
@@ -85,6 +93,11 @@ class TestMessageModel(TestCase, _TestDataMixin):
         msg = self._create_message(subject="Привет мир")
         assert str(msg) == "Привет мир"
 
+    def test_message_has_owner(self) -> None:
+        user = self._create_user()
+        msg = self._create_message(owner=user)
+        assert msg.owner == user
+
 
 class TestMailingModel(TestCase, _TestDataMixin):
     """Тесты модели Mailing."""
@@ -105,6 +118,44 @@ class TestMailingModel(TestCase, _TestDataMixin):
         r2 = self._create_recipient(email="b@test.com")
         mailing.recipients.add(r1, r2)
         assert mailing.recipients.count() == 2
+
+    def test_update_status_before_start(self) -> None:
+        mailing = self._create_mailing(
+            delta_start=timedelta(hours=1),
+            delta_end=timedelta(hours=2),
+            status=MAILING_STATUS_STARTED,
+        )
+        mailing.update_status()
+        mailing.refresh_from_db()
+        assert mailing.status == MAILING_STATUS_CREATED
+
+    def test_update_status_during_window(self) -> None:
+        mailing = self._create_mailing(
+            delta_start=timedelta(hours=-1),
+            delta_end=timedelta(hours=1),
+        )
+        mailing.update_status()
+        mailing.refresh_from_db()
+        assert mailing.status == MAILING_STATUS_STARTED
+
+    def test_update_status_after_end(self) -> None:
+        mailing = self._create_mailing(
+            delta_start=timedelta(days=-2),
+            delta_end=timedelta(days=-1),
+        )
+        mailing.update_status()
+        mailing.refresh_from_db()
+        assert mailing.status == MAILING_STATUS_COMPLETED
+
+    def test_update_status_no_save_if_unchanged(self) -> None:
+        mailing = self._create_mailing(
+            delta_start=timedelta(hours=1),
+            delta_end=timedelta(hours=2),
+            status=MAILING_STATUS_CREATED,
+        )
+        mailing.update_status()
+        mailing.refresh_from_db()
+        assert mailing.status == MAILING_STATUS_CREATED
 
 
 class TestMailingAttemptModel(TestCase, _TestDataMixin):
@@ -140,6 +191,16 @@ class TestSendMailing(TestCase, _TestDataMixin):
 
         mailing.refresh_from_db()
         assert mailing.status == MAILING_STATUS_COMPLETED
+
+    def test_future_mailing_not_sent(self) -> None:
+        mailing = self._create_mailing(
+            delta_start=timedelta(hours=1),
+            delta_end=timedelta(hours=2),
+        )
+        r = self._create_recipient()
+        mailing.recipients.add(r)
+        result = send_mailing(mailing.pk)
+        assert result == (0, 0)
 
     def test_mailing_without_recipients_returns_zeros(self) -> None:
         mailing = self._create_mailing()
@@ -231,17 +292,72 @@ class TestMessageForm(TestCase):
 class TestMailingForm(TestCase, _TestDataMixin):
     """Тесты формы рассылки."""
 
+    def _local_fmt(self, dt) -> str:
+        """Format a datetime as local time string for form input."""
+        return timezone.localtime(dt).strftime("%Y-%m-%dT%H:%M")
+
     def test_valid_form(self) -> None:
         msg = self._create_message()
         r = self._create_recipient()
         now = timezone.now()
         form = MailingForm(
             data={
-                "start_datetime": (now + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M"),
-                "end_datetime": (now + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M"),
+                "start_time": self._local_fmt(now + timedelta(hours=1)),
+                "end_time": self._local_fmt(now + timedelta(hours=2)),
                 "message": msg.pk,
                 "recipients": [r.pk],
             }
+        )
+        assert form.is_valid(), form.errors
+
+    def test_start_time_in_past_invalid(self) -> None:
+        msg = self._create_message()
+        r = self._create_recipient()
+        now = timezone.now()
+        form = MailingForm(
+            data={
+                "start_time": self._local_fmt(now - timedelta(hours=1)),
+                "end_time": self._local_fmt(now + timedelta(hours=1)),
+                "message": msg.pk,
+                "recipients": [r.pk],
+            }
+        )
+        assert not form.is_valid()
+        assert "start_time" in form.errors
+
+    def test_end_time_before_start_time_invalid(self) -> None:
+        msg = self._create_message()
+        r = self._create_recipient()
+        now = timezone.now()
+        form = MailingForm(
+            data={
+                "start_time": self._local_fmt(now + timedelta(hours=2)),
+                "end_time": self._local_fmt(now + timedelta(hours=1)),
+                "message": msg.pk,
+                "recipients": [r.pk],
+            }
+        )
+        assert not form.is_valid()
+        assert "end_time" in form.errors
+
+    def test_edit_existing_mailing_with_past_start_time_allowed(self) -> None:
+        msg = self._create_message()
+        r = self._create_recipient()
+        now = timezone.now()
+        mailing = Mailing.objects.create(
+            start_time=now - timedelta(hours=1),
+            end_time=now + timedelta(hours=5),
+            message=msg,
+        )
+        mailing.recipients.add(r)
+        form = MailingForm(
+            data={
+                "start_time": self._local_fmt(now - timedelta(hours=1)),
+                "end_time": self._local_fmt(now + timedelta(hours=5)),
+                "message": msg.pk,
+                "recipients": [r.pk],
+            },
+            instance=mailing,
         )
         assert form.is_valid(), form.errors
 
@@ -339,6 +455,31 @@ class TestOwnerAccess(TestCase, _TestDataMixin):
         response = self.client.get(reverse("mailing:recipient_list"))
         assert len(response.context["recipients"]) == 2
 
+    def test_owner_sees_only_own_messages(self) -> None:
+        self._create_message(owner=self.owner)
+        self._create_message(subject="Чужая", owner=self.other)
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse("mailing:message_list"))
+        owned_messages = [m for m in response.context["messages_list"] if m.owner == self.owner]
+        assert len(owned_messages) == 1
+
+    def test_staff_sees_all_messages(self) -> None:
+        msg_count_before = Message.objects.count()
+        self._create_message(owner=self.owner)
+        self._create_message(subject="Чужая", owner=self.other)
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("mailing:message_list"))
+        assert len(response.context["messages_list"]) == msg_count_before + 2
+
+    def test_message_create_sets_owner(self) -> None:
+        self.client.force_login(self.owner)
+        self.client.post(
+            reverse("mailing:message_create"),
+            data={"subject": "Новое", "body": "Текст"},
+        )
+        msg = Message.objects.get(subject="Новое")
+        assert msg.owner == self.owner
+
 
 class TestMailingSendView(TestCase, _TestDataMixin):
     """Тесты ручной отправки рассылки через UI."""
@@ -362,6 +503,50 @@ class TestMailingSendView(TestCase, _TestDataMixin):
         response = self.client.post(reverse("mailing:mailing_send", args=[99999]))
         assert response.status_code == 404
 
+    def test_send_outside_time_window_fails(self) -> None:
+        user = self._create_user()
+        mailing = self._create_mailing(
+            owner=user,
+            delta_start=timedelta(hours=1),
+            delta_end=timedelta(hours=2),
+        )
+        self.client.force_login(user)
+        response = self.client.post(reverse("mailing:mailing_send", args=[mailing.pk]))
+        assert response.status_code == 302
+        assert not MailingAttempt.objects.filter(mailing=mailing).exists()
+
+    def test_non_owner_cannot_send(self) -> None:
+        owner = self._create_user(email="sender@test.com")
+        other = self._create_user(email="intruder@test.com")
+        mailing = self._create_mailing(owner=owner)
+
+        self.client.force_login(other)
+        response = self.client.post(reverse("mailing:mailing_send", args=[mailing.pk]))
+        assert response.status_code == 403
+
+
+class TestMailingDisableView(TestCase, _TestDataMixin):
+    """Тесты отключения рассылки менеджером."""
+
+    def test_staff_can_disable_mailing(self) -> None:
+        staff = self._create_staff()
+        mailing = self._create_mailing(status=MAILING_STATUS_STARTED)
+        self.client.force_login(staff)
+
+        response = self.client.post(reverse("mailing:mailing_disable", args=[mailing.pk]))
+        assert response.status_code == 302
+
+        mailing.refresh_from_db()
+        assert mailing.status == MAILING_STATUS_COMPLETED
+
+    def test_non_staff_cannot_disable_mailing(self) -> None:
+        user = self._create_user()
+        mailing = self._create_mailing(status=MAILING_STATUS_STARTED)
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("mailing:mailing_disable", args=[mailing.pk]))
+        assert response.status_code == 403
+
 
 class TestStatisticsView(TestCase, _TestDataMixin):
     """Тесты страницы статистики."""
@@ -380,3 +565,101 @@ class TestStatisticsView(TestCase, _TestDataMixin):
         assert response.context["total_attempts"] == 1
         assert response.context["success_attempts"] == 1
         assert response.context["total_mailings"] == 1
+
+
+# ========== Пользователи ==========
+
+
+class TestUserListView(TestCase, _TestDataMixin):
+    """Тесты списка пользователей (менеджер)."""
+
+    def test_staff_can_view_user_list(self) -> None:
+        staff = self._create_staff()
+        self.client.force_login(staff)
+        response = self.client.get(reverse("users:user_list"))
+        assert response.status_code == 200
+
+    def test_non_staff_cannot_view_user_list(self) -> None:
+        user = self._create_user()
+        self.client.force_login(user)
+        response = self.client.get(reverse("users:user_list"))
+        assert response.status_code == 403
+
+
+class TestUserBlockView(TestCase, _TestDataMixin):
+    """Тесты блокировки пользователей."""
+
+    def test_staff_can_block_user(self) -> None:
+        staff = self._create_staff()
+        user = self._create_user()
+        self.client.force_login(staff)
+
+        response = self.client.post(reverse("users:user_block", args=[user.pk]))
+        assert response.status_code == 302
+
+        user.refresh_from_db()
+        assert not user.is_active
+
+    def test_staff_can_unblock_user(self) -> None:
+        staff = self._create_staff()
+        user = self._create_user()
+        user.is_active = False
+        user.save()
+        self.client.force_login(staff)
+
+        self.client.post(reverse("users:user_block", args=[user.pk]))
+        user.refresh_from_db()
+        assert user.is_active
+
+    def test_staff_cannot_block_self(self) -> None:
+        staff = self._create_staff()
+        self.client.force_login(staff)
+
+        self.client.post(reverse("users:user_block", args=[staff.pk]))
+        staff.refresh_from_db()
+        assert staff.is_active
+
+    def test_non_staff_cannot_block(self) -> None:
+        user = self._create_user()
+        other = self._create_user(email="target@test.com")
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("users:user_block", args=[other.pk]))
+        assert response.status_code == 403
+
+
+class TestProfileViews(TestCase, _TestDataMixin):
+    """Тесты профиля пользователя."""
+
+    def test_profile_view_requires_login(self) -> None:
+        response = self.client.get(reverse("users:profile"))
+        assert response.status_code == 302
+
+    def test_profile_view_accessible_for_auth_user(self) -> None:
+        user = self._create_user()
+        self.client.force_login(user)
+        response = self.client.get(reverse("users:profile"))
+        assert response.status_code == 200
+
+    def test_profile_edit_view_accessible(self) -> None:
+        user = self._create_user()
+        self.client.force_login(user)
+        response = self.client.get(reverse("users:profile_edit"))
+        assert response.status_code == 200
+
+    def test_profile_edit_updates_data(self) -> None:
+        user = self._create_user()
+        self.client.force_login(user)
+        self.client.post(
+            reverse("users:profile_edit"),
+            data={
+                "email": user.email,
+                "first_name": "Иван",
+                "last_name": "Иванов",
+                "phone": "+7 999 123-45-67",
+                "country": "Россия",
+            },
+        )
+        user.refresh_from_db()
+        assert user.first_name == "Иван"
+        assert user.country == "Россия"

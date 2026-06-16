@@ -4,44 +4,13 @@
 и фиксации результатов в модели MailingAttempt.
 """
 
-import logging
-from pathlib import Path
-
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
-ENCODING = "utf-8"
-FILE_WRITE_MODE = "w"
-TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+from config.logging_config import setup_logger
 
-
-def _setup_logger() -> logging.Logger:
-    """Настраивает и возвращает логгер для модуля services."""
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-
-    if logger.handlers:
-        return logger
-
-    logs_dir = Path(__file__).parent.parent / "logs"
-    logs_dir.mkdir(exist_ok=True)
-
-    log_file = logs_dir / "services.log"
-    file_handler = logging.FileHandler(log_file, mode=FILE_WRITE_MODE, encoding=ENCODING)
-    file_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt=TIMESTAMP_FORMAT,
-    )
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-
-    return logger
-
-
-logger = _setup_logger()
+logger = setup_logger(__name__, "services.log")
 
 
 def send_mailing(mailing_id: int) -> tuple[int, int]:
@@ -74,7 +43,11 @@ def send_mailing(mailing_id: int) -> tuple[int, int]:
         return (0, 0)
 
     now = timezone.now()
-    if mailing_obj.end_datetime < now:
+    if now < mailing_obj.start_time:
+        logger.warning(f"Рассылка #{mailing_id} ещё не началась — время начала не наступило")
+        return (0, 0)
+
+    if mailing_obj.end_time < now:
         mailing_obj.status = MAILING_STATUS_COMPLETED
         mailing_obj.save(update_fields=["status"])
         logger.warning(f"Рассылка #{mailing_id} завершена — время окончания прошло")

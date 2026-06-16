@@ -7,18 +7,23 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import QuerySet
+from django.forms import Form
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_cookie
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 
+from config.rate_limit import rate_limit
 from mailing.forms import MailingForm, MessageForm, RecipientForm
 from mailing.models import (
     ATTEMPT_STATUS_FAILURE,
     ATTEMPT_STATUS_SUCCESS,
+    MAILING_STATUS_COMPLETED,
     MAILING_STATUS_STARTED,
     Mailing,
     MailingAttempt,
@@ -42,9 +47,23 @@ class OwnerRequiredMixin(UserPassesTestMixin):
         return True
 
 
+class MailingStatusMixin:
+    """Миксин для пересчёта статуса рассылки при обращении к объекту."""
+
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)
+        obj.update_status()
+        return obj
+
+
+@method_decorator(vary_on_cookie, name="dispatch")
 @method_decorator(cache_page(HOME_CACHE_TIMEOUT), name="dispatch")
 class HomeView(TemplateView):
-    """Главная страница со статистикой рассылок."""
+    """Главная страница со статистикой рассылок.
+
+    Кэш страницы (полное кэширование ответа) с учётом Cookie, т.к. в шаблоне
+    есть блок навигации, зависящий от сессии пользователя.
+    """
 
     template_name = "mailing/home.html"
 
@@ -72,7 +91,7 @@ class RecipientListView(LoginRequiredMixin, ListView):
         return Recipient.objects.filter(owner=self.request.user)
 
 
-class RecipientDetailView(LoginRequiredMixin, DetailView):
+class RecipientDetailView(LoginRequiredMixin, OwnerRequiredMixin, DetailView):
     """Детальная страница получателя."""
 
     model = Recipient
@@ -115,7 +134,7 @@ class RecipientDeleteView(LoginRequiredMixin, OwnerRequiredMixin, DeleteView):
     success_url = reverse_lazy("mailing:recipient_list")
     context_object_name = "recipient"
 
-    def form_valid(self, form: RecipientForm) -> HttpResponse:
+    def form_valid(self, form: Form) -> HttpResponse:
         messages.success(self.request, "Получатель удалён.")
         return super().form_valid(form)
 
@@ -124,14 +143,19 @@ class RecipientDeleteView(LoginRequiredMixin, OwnerRequiredMixin, DeleteView):
 
 
 class MessageListView(LoginRequiredMixin, ListView):
-    """Список всех сообщений."""
+    """Список сообщений текущего пользователя."""
 
     model = Message
     template_name = "mailing/message_list.html"
     context_object_name = "messages_list"
 
+    def get_queryset(self) -> QuerySet[Message]:
+        if self.request.user.is_staff:
+            return Message.objects.all()
+        return Message.objects.filter(owner=self.request.user)
 
-class MessageDetailView(LoginRequiredMixin, DetailView):
+
+class MessageDetailView(LoginRequiredMixin, OwnerRequiredMixin, DetailView):
     """Детальная страница сообщения."""
 
     model = Message
@@ -148,11 +172,12 @@ class MessageCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("mailing:message_list")
 
     def form_valid(self, form: MessageForm) -> HttpResponse:
+        form.instance.owner = self.request.user
         messages.success(self.request, "Сообщение успешно создано.")
         return super().form_valid(form)
 
 
-class MessageUpdateView(LoginRequiredMixin, UpdateView):
+class MessageUpdateView(LoginRequiredMixin, OwnerRequiredMixin, UpdateView):
     """Редактирование сообщения."""
 
     model = Message
@@ -165,7 +190,7 @@ class MessageUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class MessageDeleteView(LoginRequiredMixin, DeleteView):
+class MessageDeleteView(LoginRequiredMixin, OwnerRequiredMixin, DeleteView):
     """Удаление сообщения."""
 
     model = Message
@@ -173,7 +198,7 @@ class MessageDeleteView(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy("mailing:message_list")
     context_object_name = "msg"
 
-    def form_valid(self, form: MessageForm) -> HttpResponse:
+    def form_valid(self, form: Form) -> HttpResponse:
         messages.success(self.request, "Сообщение удалено.")
         return super().form_valid(form)
 
@@ -194,7 +219,7 @@ class MailingListView(LoginRequiredMixin, ListView):
         return Mailing.objects.filter(owner=self.request.user)
 
 
-class MailingDetailView(LoginRequiredMixin, DetailView):
+class MailingDetailView(MailingStatusMixin, LoginRequiredMixin, OwnerRequiredMixin, DetailView):
     """Детальная страница рассылки с историей попыток."""
 
     model = Mailing
@@ -215,13 +240,18 @@ class MailingCreateView(LoginRequiredMixin, CreateView):
     template_name = "mailing/mailing_form.html"
     success_url = reverse_lazy("mailing:mailing_list")
 
+    def get_form_kwargs(self) -> dict:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
     def form_valid(self, form: MailingForm) -> HttpResponse:
         form.instance.owner = self.request.user
         messages.success(self.request, "Рассылка успешно создана.")
         return super().form_valid(form)
 
 
-class MailingUpdateView(LoginRequiredMixin, OwnerRequiredMixin, UpdateView):
+class MailingUpdateView(MailingStatusMixin, LoginRequiredMixin, OwnerRequiredMixin, UpdateView):
     """Редактирование рассылки."""
 
     model = Mailing
@@ -229,12 +259,17 @@ class MailingUpdateView(LoginRequiredMixin, OwnerRequiredMixin, UpdateView):
     template_name = "mailing/mailing_form.html"
     success_url = reverse_lazy("mailing:mailing_list")
 
+    def get_form_kwargs(self) -> dict:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
     def form_valid(self, form: MailingForm) -> HttpResponse:
         messages.success(self.request, "Рассылка успешно обновлена.")
         return super().form_valid(form)
 
 
-class MailingDeleteView(LoginRequiredMixin, OwnerRequiredMixin, DeleteView):
+class MailingDeleteView(MailingStatusMixin, LoginRequiredMixin, OwnerRequiredMixin, DeleteView):
     """Удаление рассылки."""
 
     model = Mailing
@@ -242,15 +277,17 @@ class MailingDeleteView(LoginRequiredMixin, OwnerRequiredMixin, DeleteView):
     success_url = reverse_lazy("mailing:mailing_list")
     context_object_name = "mailing_obj"
 
-    def form_valid(self, form: MailingForm) -> HttpResponse:
+    def form_valid(self, form: Form) -> HttpResponse:
         messages.success(self.request, "Рассылка удалена.")
         return super().form_valid(form)
 
 
+@method_decorator(rate_limit(max_requests=10, period_seconds=60, key_prefix="mailing_send"), name="post")
 class MailingSendView(LoginRequiredMixin, View):
     """Ручная отправка рассылки по POST-запросу.
 
     Отправку может выполнить только владелец рассылки или менеджер (is_staff).
+    Отправка разрешена только если текущее время между start_time и end_time.
     """
 
     def post(self, request, pk: int) -> HttpResponse:
@@ -263,12 +300,34 @@ class MailingSendView(LoginRequiredMixin, View):
         if mailing_obj.owner != request.user and not request.user.is_staff:
             raise PermissionDenied
 
+        now = timezone.now()
+        if not (mailing_obj.start_time <= now <= mailing_obj.end_time):
+            messages.error(
+                request,
+                "Отправка невозможна: текущее время вне диапазона рассылки.",
+            )
+            return redirect("mailing:mailing_detail", pk=pk)
+
         success_count, failure_count = send_mailing(mailing_obj.pk)
         messages.success(
             request,
             f"Рассылка отправлена. Успешно: {success_count}, ошибок: {failure_count}.",
         )
         return redirect("mailing:mailing_detail", pk=pk)
+
+
+class MailingDisableView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Отключение рассылки менеджером."""
+
+    def test_func(self) -> bool:
+        return self.request.user.is_staff
+
+    def post(self, request, pk: int) -> HttpResponse:
+        mailing_obj = get_object_or_404(Mailing, pk=pk)
+        mailing_obj.status = MAILING_STATUS_COMPLETED
+        mailing_obj.save(update_fields=["status"])
+        messages.success(request, f"Рассылка #{pk} отключена.")
+        return redirect("mailing:mailing_list")
 
 
 # --- Попытки рассылок ---

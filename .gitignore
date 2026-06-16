@@ -28,6 +28,7 @@ logs/*
 # IDE
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 .DS_Store

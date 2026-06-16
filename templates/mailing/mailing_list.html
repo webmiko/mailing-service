@@ -31,12 +31,20 @@
                         {{ m.status }}
                     </span>
                 </td>
-                <td class="d-none d-md-table-cell">{{ m.start_datetime|date:"d.m.Y H:i" }}</td>
-                <td class="d-none d-md-table-cell">{{ m.end_datetime|date:"d.m.Y H:i" }}</td>
+                <td class="d-none d-md-table-cell">{{ m.start_time|date:"d.m.Y H:i" }}</td>
+                <td class="d-none d-md-table-cell">{{ m.end_time|date:"d.m.Y H:i" }}</td>
                 <td>
                     <div class="btn-group btn-group-sm">
+                        {% if request.user == m.owner or request.user.is_staff %}
                         <a href="{% url 'mailing:mailing_update' m.pk %}" class="btn btn-outline-secondary">Изменить</a>
                         <a href="{% url 'mailing:mailing_delete' m.pk %}" class="btn btn-outline-danger">Удалить</a>
+                        {% endif %}
+                        {% if request.user.is_staff and m.status != 'Завершена' %}
+                        <form method="post" action="{% url 'mailing:mailing_disable' m.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-warning">Отключить</button>
+                        </form>
+                        {% endif %}
                     </div>
                 </td>
             </tr>

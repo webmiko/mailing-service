@@ -24,7 +24,7 @@
                         Рассылка #{{ attempt.mailing.pk }}
                     </a>
                 </td>
-                <td>{{ attempt.attempted_at|date:"d.m.Y H:i:s" }}</td>
+                <td>{{ attempt.attempt_time|date:"d.m.Y H:i:s" }}</td>
                 <td>
                     <span class="badge {% if attempt.status == 'Успешно' %}bg-success{% else %}bg-danger{% endif %}">
                         {{ attempt.status }}

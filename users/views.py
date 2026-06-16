@@ -1,60 +1,32 @@
 """Представления приложения users.
 
 Содержит views для регистрации, входа, выхода,
-подтверждения email и профиля пользователя.
+подтверждения email, профиля и управления пользователями.
 """
-
-import logging
-from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth import login
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.views import LoginView, LogoutView
 from django.http import HttpResponse, HttpResponseRedirect
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.utils.decorators import method_decorator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-from django.views.generic import CreateView, TemplateView, View
+from django.views import View
+from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 
-from users.forms import UserLoginForm, UserRegisterForm
+from config.logging_config import setup_logger
+from config.rate_limit import rate_limit
+from users.forms import UserLoginForm, UserProfileForm, UserRegisterForm
 from users.models import User
 
-ENCODING = "utf-8"
-FILE_WRITE_MODE = "a"
-TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+logger = setup_logger(__name__, "users.log")
 
 
-def _setup_logger() -> logging.Logger:
-    """Настраивает и возвращает логгер для модуля users.views."""
-    _logger = logging.getLogger(__name__)
-    _logger.setLevel(logging.DEBUG)
-
-    if _logger.handlers:
-        return _logger
-
-    logs_dir = Path(__file__).parent.parent / "logs"
-    logs_dir.mkdir(exist_ok=True)
-
-    log_file = logs_dir / "users.log"
-    file_handler = logging.FileHandler(log_file, mode=FILE_WRITE_MODE, encoding=ENCODING)
-    file_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt=TIMESTAMP_FORMAT,
-    )
-    file_handler.setFormatter(formatter)
-    _logger.addHandler(file_handler)
-
-    return _logger
-
-
-logger = _setup_logger()
-
-
+@method_decorator(rate_limit(max_requests=5, period_seconds=300, key_prefix="register"), name="post")
 class UserRegisterView(CreateView):
     """Регистрация нового пользователя с отправкой письма-подтверждения."""
 
@@ -103,7 +75,7 @@ class EmailVerifyView(View):
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(pk=uid)
-        except TypeError, ValueError, OverflowError, User.DoesNotExist:
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             messages.error(request, "Неверная ссылка подтверждения.")
             return redirect("users:login")
 
@@ -118,6 +90,7 @@ class EmailVerifyView(View):
         return redirect("users:login")
 
 
+@method_decorator(rate_limit(max_requests=10, period_seconds=300, key_prefix="login"), name="post")
 class UserLoginView(LoginView):
     """Вход пользователя в систему."""
 
@@ -132,6 +105,53 @@ class UserLogoutView(LogoutView):
 
 
 class ProfileView(LoginRequiredMixin, TemplateView):
-    """Профиль текущего пользователя."""
+    """Профиль текущего пользователя (просмотр)."""
 
     template_name = "users/profile.html"
+
+
+class ProfileUpdateView(LoginRequiredMixin, UpdateView):
+    """Редактирование профиля текущего пользователя."""
+
+    model = User
+    form_class = UserProfileForm
+    template_name = "users/profile_edit.html"
+    success_url = reverse_lazy("users:profile")
+
+    def get_object(self, queryset=None):
+        return self.request.user
+
+    def form_valid(self, form: UserProfileForm) -> HttpResponse:
+        messages.success(self.request, "Профиль успешно обновлён.")
+        return super().form_valid(form)
+
+
+class UserListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """Список пользователей сервиса (только для менеджеров/staff)."""
+
+    model = User
+    template_name = "users/user_list.html"
+    context_object_name = "users_list"
+
+    def test_func(self) -> bool:
+        return self.request.user.is_staff
+
+
+class UserBlockView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Блокировка/разблокировка пользователя менеджером."""
+
+    def test_func(self) -> bool:
+        return self.request.user.is_staff
+
+    def post(self, request, pk: int) -> HttpResponse:
+        user = get_object_or_404(User, pk=pk)
+        if user == request.user:
+            messages.error(request, "Нельзя заблокировать самого себя.")
+            return redirect("users:user_list")
+
+        user.is_active = not user.is_active
+        user.save(update_fields=["is_active"])
+
+        action = "разблокирован" if user.is_active else "заблокирован"
+        messages.success(request, f"Пользователь {user.email} {action}.")
+        return redirect("users:user_list")

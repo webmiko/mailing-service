@@ -17,8 +17,10 @@
 </div>
 
 <div class="d-flex flex-wrap gap-2">
+    {% if request.user == msg.owner or request.user.is_staff %}
     <a href="{% url 'mailing:message_update' msg.pk %}" class="btn btn-secondary">Редактировать</a>
     <a href="{% url 'mailing:message_delete' msg.pk %}" class="btn btn-danger">Удалить</a>
+    {% endif %}
     <a href="{% url 'mailing:message_list' %}" class="btn btn-outline-secondary">Назад к списку</a>
 </div>
 {% endblock %}

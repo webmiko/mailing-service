@@ -25,7 +25,7 @@ class MessageAdmin(admin.ModelAdmin):
 class MailingAdmin(admin.ModelAdmin):
     """Настройка отображения рассылок в админ-панели."""
 
-    list_display = ("pk", "message", "status", "start_datetime", "end_datetime")
+    list_display = ("pk", "message", "status", "start_time", "end_time")
     list_filter = ("status",)
     filter_horizontal = ("recipients",)
 
@@ -34,6 +34,6 @@ class MailingAdmin(admin.ModelAdmin):
 class MailingAttemptAdmin(admin.ModelAdmin):
     """Настройка отображения попыток рассылок в админ-панели."""
 
-    list_display = ("mailing", "attempted_at", "status")
+    list_display = ("mailing", "attempt_time", "status")
     list_filter = ("status",)
-    readonly_fields = ("attempted_at",)
+    readonly_fields = ("attempt_time",)

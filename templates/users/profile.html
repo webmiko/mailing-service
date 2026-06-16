@@ -5,11 +5,31 @@
 {% block content %}
 <h1 class="mb-4">Профиль</h1>
 
+{% if not user.is_verified %}
+<div class="alert alert-warning" role="alert">
+    Ваш email ещё не подтверждён. Проверьте почту и перейдите по ссылке для подтверждения.
+    Доступ к функциям сервиса ограничен до подтверждения email.
+</div>
+{% endif %}
+
 <div class="card" style="max-width: 600px;">
     <div class="card-body">
+        {% if user.avatar %}
+        <div class="mb-3 text-center">
+            <img src="{{ user.avatar.url }}" alt="Аватар" class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover;">
+        </div>
+        {% endif %}
         <dl class="row mb-0">
             <dt class="col-sm-5">Email</dt>
             <dd class="col-sm-7">{{ user.email }}</dd>
+            <dt class="col-sm-5">Имя</dt>
+            <dd class="col-sm-7">{{ user.first_name|default:"—" }}</dd>
+            <dt class="col-sm-5">Фамилия</dt>
+            <dd class="col-sm-7">{{ user.last_name|default:"—" }}</dd>
+            <dt class="col-sm-5">Телефон</dt>
+            <dd class="col-sm-7">{{ user.phone|default:"—" }}</dd>
+            <dt class="col-sm-5">Страна</dt>
+            <dd class="col-sm-7">{{ user.country|default:"—" }}</dd>
             <dt class="col-sm-5">Email подтверждён</dt>
             <dd class="col-sm-7">
                 {% if user.is_verified %}
@@ -22,5 +42,9 @@
             <dd class="col-sm-7">{{ user.date_joined|date:"d.m.Y H:i" }}</dd>
         </dl>
     </div>
+</div>
+
+<div class="mt-3">
+    <a href="{% url 'users:profile_edit' %}" class="btn btn-primary">Редактировать профиль</a>
 </div>
 {% endblock %}
